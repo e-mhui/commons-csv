@@ -20,11 +20,14 @@ package org.apache.commons.csv.issues;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.Reader;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -114,10 +117,21 @@ public class JiraCsv2015Test {
 
     @Test
     public void testMultipleDelimiterWithOrLogic() throws IOException {
-        final String code = "foo\rbaar,\rhello,world\r,kanu";
-        try (final CSVParser parser = CSVParser.parse(code, CSVFormat.DEFAULT)) {
-            final List<CSVRecord> records = parser.getRecords();
-            assertEquals(4, records.size());
+        Reader in = new FileReader("/Users/menghuiyu/Work/Java/commons-csv/src/test/resources/org/apache/commons/csv/CSV-2025/abc.csv");
+
+        Iterable<CSVRecord> records = CSVFormat.DEFAULT
+                .builder()
+//                        .setRecordSeparator("\r\n")
+                .setQuote('\"')
+                .setDelimiter(Arrays.asList(",", ":", "||"))
+                .setRecordSeparator("==")
+                .build()
+//                                .setQuoteMode()
+//                                        .setDelimiter()
+//                                                .setQuote()
+                .parse(in);
+        for (CSVRecord record : records) {
+            System.out.println(record.toString());
         }
     }
 }

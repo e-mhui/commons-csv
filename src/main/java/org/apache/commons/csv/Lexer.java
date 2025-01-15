@@ -32,6 +32,8 @@ import static org.apache.commons.csv.Token.Type.TOKEN;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Lexical analyzer.
@@ -48,9 +50,11 @@ final class Lexer implements Closeable {
      */
     private static final char DISABLED = '\ufffe';
 
-    private final char[] delimiter;
-    private final char[] delimiterBuf;
-    private final char[] escapeDelimiterBuf;
+    private final List<char[]> recordSeparators;
+    private final List<char[]> recordSeparatorBufs;
+    private final List<char[]> delimiters;
+    private final List<char[]> delimiterBufs;
+    private final List<char[]> escapeDelimiterBufs;
     private final char escape;
     private final char quoteChar;
     private final char commentStart;
@@ -66,14 +70,21 @@ final class Lexer implements Closeable {
 
     Lexer(final CSVFormat format, final ExtendedBufferedReader reader) {
         this.reader = reader;
-        this.delimiter = format.getDelimiterString().toCharArray();
+        this.delimiters = format.getDelimiterString().stream().map(String::toCharArray)
+                .collect(Collectors.toList());
         this.escape = mapNullToDisabled(format.getEscapeCharacter());
         this.quoteChar = mapNullToDisabled(format.getQuoteCharacter());
         this.commentStart = mapNullToDisabled(format.getCommentMarker());
         this.ignoreSurroundingSpaces = format.getIgnoreSurroundingSpaces();
         this.ignoreEmptyLines = format.getIgnoreEmptyLines();
-        this.delimiterBuf = new char[delimiter.length - 1];
-        this.escapeDelimiterBuf = new char[2 * delimiter.length - 1];
+        this.delimiterBufs = delimiters.stream().map(delimiter -> new char[delimiter.length - 1])
+                .collect(Collectors.toList());
+        this.escapeDelimiterBufs = delimiters.stream().map(delimiter -> new char[2 * delimiter.length - 1])
+                .collect(Collectors.toList());
+        this.recordSeparators = format.getRecordSeparator().stream().map(String::toCharArray)
+                .collect(Collectors.toList());
+        this.recordSeparatorBufs = recordSeparators.stream().map(delimiter -> new char[delimiter.length - 1])
+                .collect(Collectors.toList());
     }
 
     /**
@@ -127,22 +138,31 @@ final class Lexer implements Closeable {
      */
     boolean isDelimiter(final int ch) throws IOException {
         isLastTokenDelimiter = false;
-        if (ch != delimiter[0]) {
-            return false;
-        }
-        if (delimiter.length == 1) {
-            isLastTokenDelimiter = true;
-            return true;
-        }
-        reader.lookAhead(delimiterBuf);
-        for (int i = 0; i < delimiterBuf.length; i++) {
-            if (delimiterBuf[i] != delimiter[i+1]) {
-                return false;
+        for (int i = 0; i < delimiters.size(); i++) {
+            char[] delimiter = delimiters.get(i);
+            if (ch != delimiter[0]) {
+                continue;
             }
+            if (delimiter.length == 1) {
+                isLastTokenDelimiter = true;
+                return true;
+            }
+            char[] delimiterBuf = delimiterBufs.get(i);
+            reader.lookAhead(delimiterBuf);
+            int j = 0;
+            for (j = 0; j < delimiterBuf.length; j++) {
+                if (delimiterBuf[j] != delimiter[j+1]) {
+                    break;
+                }
+            }
+            if (j != delimiterBuf.length) {
+                continue;
+            }
+            final int count = reader.read(delimiterBuf, 0, delimiterBuf.length);
+            isLastTokenDelimiter = count != END_OF_STREAM;
+            return isLastTokenDelimiter;
         }
-        final int count = reader.read(delimiterBuf, 0, delimiterBuf.length);
-        isLastTokenDelimiter = count != END_OF_STREAM;
-        return isLastTokenDelimiter;
+        return false;
     }
 
     /**
@@ -172,17 +192,26 @@ final class Lexer implements Closeable {
      * @throws IOException If an I/O error occurs.
      */
     boolean isEscapeDelimiter() throws IOException {
-        reader.lookAhead(escapeDelimiterBuf);
-        if (escapeDelimiterBuf[0] != delimiter[0]) {
-            return false;
-        }
-        for (int i = 1; i < delimiter.length; i++) {
-            if (escapeDelimiterBuf[2 * i] != delimiter[i] || escapeDelimiterBuf[2 * i - 1] != escape) {
-                return false;
+        for (int i = 0; i < escapeDelimiterBufs.size(); i++) {
+            char[] escapeDelimiterBuf = escapeDelimiterBufs.get(i);
+            reader.lookAhead(escapeDelimiterBuf);
+            char[] delimiter = delimiters.get(0);
+            if (escapeDelimiterBuf[0] != delimiter[0]) {
+                continue;
             }
+            int j = 1;
+            for (j = 1; j < delimiter.length; j++) {
+                if (escapeDelimiterBuf[2 * j] != delimiter[j] || escapeDelimiterBuf[2 * j - 1] != escape) {
+                    break;
+                }
+            }
+            if (j != delimiter.length) {
+                continue;
+            }
+            final int count = reader.read(escapeDelimiterBuf, 0, escapeDelimiterBuf.length);
+            return count != END_OF_STREAM;
         }
-        final int count = reader.read(escapeDelimiterBuf, 0, escapeDelimiterBuf.length);
-        return count != END_OF_STREAM;
+        return false;
     }
 
     private boolean isMetaChar(final int ch) {
@@ -199,8 +228,32 @@ final class Lexer implements Closeable {
      * @param ch the character to check
      * @return true if the character is at the start of a line.
      */
-    boolean isStartOfLine(final int ch) {
-        return ch == LF || ch == CR || ch == UNDEFINED;
+    boolean isStartOfLine(final int ch) throws IOException {
+//        return ch == LF || ch == CR || ch == UNDEFINED;
+        for (int i = 0; i < recordSeparators.size(); i++) {
+            char[] recordSeparator = recordSeparators.get(i);
+            if (ch != recordSeparator[0]) {
+                continue;
+            }
+            if (recordSeparator.length == 1) {
+                return true;
+            }
+
+            char[] recordSeparatorBuf = recordSeparatorBufs.get(i);
+            reader.lookAhead(recordSeparatorBuf);
+            int j = 0;
+            for (j = 0; j < recordSeparatorBuf.length; j++) {
+                if (recordSeparatorBuf[j] != recordSeparator[j + 1]) {
+                    break;
+                }
+            }
+            if (j != recordSeparatorBuf.length) {
+                continue;
+            }
+            final int count = reader.read(recordSeparatorBuf, 0, recordSeparatorBuf.length);
+            return count != END_OF_STREAM;
+        }
+        return false;
     }
 
     private char mapNullToDisabled(final Character c) {
@@ -333,7 +386,7 @@ final class Lexer implements Closeable {
 
             if (isEscape(c)) {
                 if (isEscapeDelimiter()) {
-                    token.content.append(delimiter);
+                    token.content.append(delimiters);
                 } else {
                     final int unescaped = readEscape();
                     if (unescaped == END_OF_STREAM) { // unexpected char after escape
@@ -421,7 +474,7 @@ final class Lexer implements Closeable {
             // continue
             if (isEscape(ch)) {
                 if (isEscapeDelimiter()) {
-                    token.content.append(delimiter);
+                    token.content.append(delimiters);
                 } else {
                     final int unescaped = readEscape();
                     if (unescaped == END_OF_STREAM) { // unexpected char after escape
@@ -449,25 +502,49 @@ final class Lexer implements Closeable {
      * @return true if the given or next character is a line-terminator
      */
     boolean readEndOfLine(int ch) throws IOException {
-        // check if we have \r\n...
-        if (ch == CR && reader.lookAhead() == LF) {
-            // note: does not change ch outside of this method!
-            ch = reader.read();
-            // Save the EOL state
-            if (firstEol == null) {
-                this.firstEol = Constants.CRLF;
+        for (int i = 0; i < recordSeparators.size(); i++) {
+            char[] recordSeparator = recordSeparators.get(i);
+            if (ch != recordSeparator[0]) {
+                continue;
             }
-        }
-        // save EOL state here.
-        if (firstEol == null) {
-            if (ch == LF) {
-                this.firstEol = LF_STRING;
-            } else if (ch == CR) {
-                this.firstEol = CR_STRING;
+            if (recordSeparator.length == 1) {
+                return true;
             }
-        }
 
-        return ch == LF || ch == CR;
+            char[] recordSeparatorBuf = recordSeparatorBufs.get(i);
+            reader.lookAhead(recordSeparatorBuf);
+            int j = 0;
+            for (j = 0; j < recordSeparatorBuf.length; j++) {
+                if (recordSeparatorBuf[j] != recordSeparator[j + 1]) {
+                    break;
+                }
+            }
+            if (j != recordSeparatorBuf.length) {
+                continue;
+            }
+            final int count = reader.read(recordSeparatorBuf, 0, recordSeparatorBuf.length);
+            return count != END_OF_STREAM;
+        }
+        return false;
+//        // check if we have \r\n...
+//        if (ch == CR && reader.lookAhead() == LF) {
+//            // note: does not change ch outside of this method!
+//            ch = reader.read();
+//            // Save the EOL state
+//            if (firstEol == null) {
+//                this.firstEol = Constants.CRLF;
+//            }
+//        }
+//        // save EOL state here.
+//        if (firstEol == null) {
+//            if (ch == LF) {
+//                this.firstEol = LF_STRING;
+//            } else if (ch == CR) {
+//                this.firstEol = CR_STRING;
+//            }
+//        }
+//
+//        return ch == LF || ch == CR;
     }
 
     // TODO escape handling needs more work

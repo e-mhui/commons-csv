@@ -318,7 +318,7 @@ public class CSVDuplicateHeaderTest {
                              .build();
         final String input = Arrays.stream(headers)
                 .map(s -> s == null ? format.getNullString() : s)
-                .collect(Collectors.joining(format.getDelimiterString()));
+                .collect(Collectors.joining(format.getDelimiterString().get(0)));
         if (valid) {
             try(CSVParser parser = CSVParser.parse(input, format)) {
                 // Parser ignores null headers

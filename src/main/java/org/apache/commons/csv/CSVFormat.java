@@ -44,9 +44,12 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Specifies the format of a CSV file for parsing and writing.
@@ -212,7 +215,7 @@ public final class CSVFormat implements Serializable {
 
         private Character commentMarker;
 
-        private String delimiter;
+        private List<String> delimiters;
 
         private DuplicateHeaderMode duplicateHeaderMode;
 
@@ -236,7 +239,7 @@ public final class CSVFormat implements Serializable {
 
         private QuoteMode quoteMode;
 
-        private String recordSeparator;
+        private List<String> recordSeparators;
 
         private boolean skipHeaderRecord;
 
@@ -245,7 +248,7 @@ public final class CSVFormat implements Serializable {
         private boolean trim;
 
         private Builder(final CSVFormat csvFormat) {
-            this.delimiter = csvFormat.delimiter;
+            this.delimiters = csvFormat.delimiters;
             this.quoteCharacter = csvFormat.quoteCharacter;
             this.quoteMode = csvFormat.quoteMode;
             this.commentMarker = csvFormat.commentMarker;
@@ -253,7 +256,7 @@ public final class CSVFormat implements Serializable {
             this.ignoreSurroundingSpaces = csvFormat.ignoreSurroundingSpaces;
             this.allowMissingColumnNames = csvFormat.allowMissingColumnNames;
             this.ignoreEmptyLines = csvFormat.ignoreEmptyLines;
-            this.recordSeparator = csvFormat.recordSeparator;
+            this.recordSeparators = csvFormat.recordSeparators;
             this.nullString = csvFormat.nullString;
             this.headerComments = csvFormat.headerComments;
             this.headers = csvFormat.headers;
@@ -360,13 +363,27 @@ public final class CSVFormat implements Serializable {
          * @return This instance.
          */
         public Builder setDelimiter(final String delimiter) {
-            if (containsLineBreak(delimiter)) {
-                throw new IllegalArgumentException("The delimiter cannot be a line break");
+//            if (containsLineBreak(delimiter)) {
+//                throw new IllegalArgumentException("The delimiter cannot be a line break");
+//            }
+//            if (delimiter.isEmpty()) {
+//                throw new IllegalArgumentException("The delimiter cannot be empty");
+//            }
+            setDelimiter(Collections.singletonList(delimiter));
+            return this;
+        }
+
+        public Builder setDelimiter(final List<String> delimiters) {
+            // TODO check delimiters have same chars
+            for (String delimiter : delimiters) {
+                if (containsLineBreak(delimiter)) {
+                    throw new IllegalArgumentException("The delimiter cannot be a line break");
+                }
+                if (delimiter.isEmpty()) {
+                    throw new IllegalArgumentException("The delimiter cannot be empty");
+                }
             }
-            if (delimiter.isEmpty()) {
-                throw new IllegalArgumentException("The delimiter cannot be empty");
-            }
-            this.delimiter = delimiter;
+            this.delimiters = delimiters;
             return this;
         }
 
@@ -650,7 +667,7 @@ public final class CSVFormat implements Serializable {
          * @return This instance.
          */
         public Builder setRecordSeparator(final char recordSeparator) {
-            this.recordSeparator = String.valueOf(recordSeparator);
+            setRecordSeparator(String.valueOf(recordSeparator));
             return this;
         }
 
@@ -666,7 +683,24 @@ public final class CSVFormat implements Serializable {
          * @return This instance.
          */
         public Builder setRecordSeparator(final String recordSeparator) {
-            this.recordSeparator = recordSeparator;
+            setRecordSeparator(Collections.singletonList(recordSeparator));
+            return this;
+        }
+
+        /**
+         * Sets the record separator to use for output.
+         *
+         * <p>
+         * <strong>Note:</strong> This setting is only used during printing and does not affect parsing. Parsing currently only works for inputs with '\n', '\r'
+         * and "\r\n"
+         * </p>
+         *
+         * @param recordSeparator the record separator to use for output.
+         * @return This instance.
+         */
+        public Builder setRecordSeparator(final List<String> recordSeparators) {
+            // TODO check for
+            this.recordSeparators = recordSeparators;
             return this;
         }
 
@@ -1316,7 +1350,7 @@ public final class CSVFormat implements Serializable {
 
     private final Character commentMarker; // null if commenting is disabled
 
-    private final String delimiter;
+    private final List<String> delimiters;
 
     private final Character escapeCharacter; // null if escaping is disabled
 
@@ -1338,7 +1372,7 @@ public final class CSVFormat implements Serializable {
 
     private final QuoteMode quoteMode;
 
-    private final String recordSeparator; // for outputs
+    private final List<String> recordSeparators; // for outputs
 
     private final boolean skipHeaderRecord;
 
@@ -1347,7 +1381,7 @@ public final class CSVFormat implements Serializable {
     private final boolean trim;
 
     private CSVFormat(final Builder builder) {
-        this.delimiter = builder.delimiter;
+        this.delimiters = builder.delimiters;
         this.quoteCharacter = builder.quoteCharacter;
         this.quoteMode = builder.quoteMode;
         this.commentMarker = builder.commentMarker;
@@ -1355,7 +1389,7 @@ public final class CSVFormat implements Serializable {
         this.ignoreSurroundingSpaces = builder.ignoreSurroundingSpaces;
         this.allowMissingColumnNames = builder.allowMissingColumnNames;
         this.ignoreEmptyLines = builder.ignoreEmptyLines;
-        this.recordSeparator = builder.recordSeparator;
+        this.recordSeparators = builder.recordSeparators;
         this.nullString = builder.nullString;
         this.headerComments = builder.headerComments;
         this.headers = builder.headers;
@@ -1397,7 +1431,7 @@ public final class CSVFormat implements Serializable {
             final Object[] headerComments, final String[] header, final boolean skipHeaderRecord, final boolean allowMissingColumnNames,
             final boolean ignoreHeaderCase, final boolean trim, final boolean trailingDelimiter, final boolean autoFlush,
             final DuplicateHeaderMode duplicateHeaderMode) {
-        this.delimiter = delimiter;
+        this.delimiters = Collections.singletonList(delimiter);
         this.quoteCharacter = quoteChar;
         this.quoteMode = quoteMode;
         this.commentMarker = commentStart;
@@ -1405,7 +1439,34 @@ public final class CSVFormat implements Serializable {
         this.ignoreSurroundingSpaces = ignoreSurroundingSpaces;
         this.allowMissingColumnNames = allowMissingColumnNames;
         this.ignoreEmptyLines = ignoreEmptyLines;
-        this.recordSeparator = recordSeparator;
+        this.recordSeparators = Collections.singletonList(recordSeparator);
+        this.nullString = nullString;
+        this.headerComments = toStringArray(headerComments);
+        this.headers = clone(header);
+        this.skipHeaderRecord = skipHeaderRecord;
+        this.ignoreHeaderCase = ignoreHeaderCase;
+        this.trailingDelimiter = trailingDelimiter;
+        this.trim = trim;
+        this.autoFlush = autoFlush;
+        this.quotedNullString = quoteCharacter + nullString + quoteCharacter;
+        this.duplicateHeaderMode = duplicateHeaderMode;
+        validate();
+    }
+
+    private CSVFormat(final List<String> delimiters, final Character quoteChar, final QuoteMode quoteMode, final Character commentStart, final Character escape,
+            final boolean ignoreSurroundingSpaces, final boolean ignoreEmptyLines, final List<String> recordSeparators, final String nullString,
+            final Object[] headerComments, final String[] header, final boolean skipHeaderRecord, final boolean allowMissingColumnNames,
+            final boolean ignoreHeaderCase, final boolean trim, final boolean trailingDelimiter, final boolean autoFlush,
+            final DuplicateHeaderMode duplicateHeaderMode) {
+        this.delimiters = delimiters;
+        this.quoteCharacter = quoteChar;
+        this.quoteMode = quoteMode;
+        this.commentMarker = commentStart;
+        this.escapeCharacter = escape;
+        this.ignoreSurroundingSpaces = ignoreSurroundingSpaces;
+        this.allowMissingColumnNames = allowMissingColumnNames;
+        this.ignoreEmptyLines = ignoreEmptyLines;
+        this.recordSeparators = recordSeparators;
         this.nullString = nullString;
         this.headerComments = toStringArray(headerComments);
         this.headers = clone(header);
@@ -1463,12 +1524,12 @@ public final class CSVFormat implements Serializable {
         }
         final CSVFormat other = (CSVFormat) obj;
         return duplicateHeaderMode == other.duplicateHeaderMode && allowMissingColumnNames == other.allowMissingColumnNames &&
-                autoFlush == other.autoFlush && Objects.equals(commentMarker, other.commentMarker) && Objects.equals(delimiter, other.delimiter) &&
+                autoFlush == other.autoFlush && Objects.equals(commentMarker, other.commentMarker) && Objects.equals(delimiters, other.delimiters) &&
                 Objects.equals(escapeCharacter, other.escapeCharacter) && Arrays.equals(headers, other.headers) &&
                 Arrays.equals(headerComments, other.headerComments) && ignoreEmptyLines == other.ignoreEmptyLines &&
                 ignoreHeaderCase == other.ignoreHeaderCase && ignoreSurroundingSpaces == other.ignoreSurroundingSpaces &&
                 Objects.equals(nullString, other.nullString) && Objects.equals(quoteCharacter, other.quoteCharacter) && quoteMode == other.quoteMode &&
-                Objects.equals(quotedNullString, other.quotedNullString) && Objects.equals(recordSeparator, other.recordSeparator) &&
+                Objects.equals(quotedNullString, other.quotedNullString) && Objects.equals(recordSeparators, other.recordSeparators) &&
                 skipHeaderRecord == other.skipHeaderRecord && trailingDelimiter == other.trailingDelimiter && trim == other.trim;
     }
 
@@ -1483,7 +1544,8 @@ public final class CSVFormat implements Serializable {
         try (CSVPrinter csvPrinter = new CSVPrinter(out, this)) {
             csvPrinter.printRecord(values);
             final String res = out.toString();
-            final int len = recordSeparator != null ? res.length() - recordSeparator.length() : res.length();
+            // TODO
+            final int len = recordSeparators.get(0) != null ? res.length() - recordSeparators.get(0).length() : res.length();
             return res.substring(0, len);
         } catch (final IOException e) {
             // should not happen because a StringWriter does not do IO.
@@ -1539,7 +1601,7 @@ public final class CSVFormat implements Serializable {
      */
     @Deprecated
     public char getDelimiter() {
-        return delimiter.charAt(0);
+        return delimiters.get(0).charAt(0);
     }
 
     /**
@@ -1548,8 +1610,8 @@ public final class CSVFormat implements Serializable {
      * @return the delimiter.
      * @since 1.9.0
      */
-    public String getDelimiterString() {
-        return delimiter;
+    public List<String> getDelimiterString() {
+        return delimiters;
     }
 
     /**
@@ -1653,8 +1715,8 @@ public final class CSVFormat implements Serializable {
      *
      * @return the record separator
      */
-    public String getRecordSeparator() {
-        return recordSeparator;
+    public List<String> getRecordSeparator() {
+        return recordSeparators;
     }
 
     /**
@@ -1692,8 +1754,8 @@ public final class CSVFormat implements Serializable {
         int result = 1;
         result = prime * result + Arrays.hashCode(headers);
         result = prime * result + Arrays.hashCode(headerComments);
-        return prime * result + Objects.hash(duplicateHeaderMode, allowMissingColumnNames, autoFlush, commentMarker, delimiter, escapeCharacter,
-                ignoreEmptyLines, ignoreHeaderCase, ignoreSurroundingSpaces, nullString, quoteCharacter, quoteMode, quotedNullString, recordSeparator,
+        return prime * result + Objects.hash(duplicateHeaderMode, allowMissingColumnNames, autoFlush, commentMarker, delimiters, escapeCharacter,
+                ignoreEmptyLines, ignoreHeaderCase, ignoreSurroundingSpaces, nullString, quoteCharacter, quoteMode, quotedNullString, recordSeparators,
                 skipHeaderRecord, trailingDelimiter, trim);
     }
 
@@ -1737,6 +1799,41 @@ public final class CSVFormat implements Serializable {
             }
         }
         return true;
+    }
+
+    /**
+     * Tests whether the next characters constitute a delimiter
+     *
+     * @param ch the current char
+     * @param originStr 起源字符串
+     * @param bufferedReader 缓冲阅读器
+     * @param startIndex where start to match
+     * @param delimiters 分隔符
+     * @return true if the match is successful
+     * @throws IOException IOException
+     */
+    private char[] getDelimiter(final char ch, final CharSequence originStr, final ExtendedBufferedReader bufferedReader, final int startIndex, final List<String> delimiters)
+            throws IOException {
+
+        for (String delimiterString : delimiters) {
+            char[] delimiter = delimiterString.toCharArray();
+            if (ch != delimiter[0]) {
+                continue;
+            }
+            int delimiterLength = delimiter.length;
+            CharSequence charSeq = originStr + new String(bufferedReader.lookAhead(delimiterLength - 1));
+            final int len = charSeq.length();
+            if (startIndex + delimiterLength > len) {
+                continue;
+            }
+            for (int i = 1; i < delimiterLength; i++) {
+                if (charSeq.charAt(startIndex + i) != delimiter[i]) {
+                    continue;
+                }
+            }
+            return delimiter;
+        }
+        return null;
     }
 
     /**
@@ -1854,7 +1951,9 @@ public final class CSVFormat implements Serializable {
         final int offset = 0;
         final int len = value.length();
         if (!newRecord) {
-            out.append(getDelimiterString());
+            // out.append(getDelimiterString());
+            // TODO how to work ?
+            out.append("");
         }
         if (object == null) {
             out.append(value);
@@ -1889,7 +1988,9 @@ public final class CSVFormat implements Serializable {
     private void print(final Reader reader, final Appendable out, final boolean newRecord) throws IOException {
         // Reader is never null
         if (!newRecord) {
-            append(getDelimiterString(), out);
+            // append(getDelimiterString(), out);
+            // TODO how to work ?
+            append(getDelimiterString().get(0), out);
         }
         if (isQuoteCharacterSet()) {
             printWithQuotes(reader, out);
@@ -1927,10 +2028,13 @@ public final class CSVFormat implements Serializable {
      */
     public synchronized void println(final Appendable appendable) throws IOException {
         if (getTrailingDelimiter()) {
-            append(getDelimiterString(), appendable);
+            // TODO how to work ?
+            // append(getDelimiterString(), appendable);
+            append(getDelimiterString().get(0), appendable);
         }
-        if (recordSeparator != null) {
-            append(recordSeparator, appendable);
+        // TODO how to work ?
+        if (recordSeparators.get(0) != null) {
+            append(recordSeparators.get(0), appendable);
         }
     }
 
@@ -1962,7 +2066,8 @@ public final class CSVFormat implements Serializable {
         int pos = 0;
         final int end = charSeq.length();
 
-        final char[] delim = getDelimiterString().toCharArray();
+        // TODO how to work ?
+        final char[] delim = getDelimiterString().get(0).toCharArray();
         final int delimLength = delim.length;
         final char escape = getEscapeCharacter().charValue();
 
@@ -2009,7 +2114,7 @@ public final class CSVFormat implements Serializable {
 
         @SuppressWarnings("resource") // Temp reader on input reader.
         final ExtendedBufferedReader bufferedReader = new ExtendedBufferedReader(reader);
-        final char[] delim = getDelimiterString().toCharArray();
+        final char[] delim = getDelimiterString().get(0).toCharArray();
         final int delimLength = delim.length;
         final char escape = getEscapeCharacter().charValue();
         final StringBuilder builder = new StringBuilder(IOUtils.DEFAULT_BUFFER_SIZE);
@@ -2064,7 +2169,7 @@ public final class CSVFormat implements Serializable {
         int pos = 0;
         final int len = charSeq.length();
 
-        final char[] delim = getDelimiterString().toCharArray();
+        final char[] delim = getDelimiterString().get(0).toCharArray();
         final int delimLength = delim.length;
         final char quoteChar = getQuoteCharacter().charValue();
         // If escape char not specified, default to the quote char
@@ -2213,7 +2318,7 @@ public final class CSVFormat implements Serializable {
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder();
-        sb.append("Delimiter=<").append(delimiter).append('>');
+        sb.append("Delimiter=<").append(StringUtils.join(delimiters, " or ")).append('>');
         if (isEscapeCharacterSet()) {
             sb.append(' ');
             sb.append("Escape=<").append(escapeCharacter).append('>');
@@ -2234,9 +2339,9 @@ public final class CSVFormat implements Serializable {
             sb.append(' ');
             sb.append("NullString=<").append(nullString).append('>');
         }
-        if (recordSeparator != null) {
+        if (recordSeparators != null) {
             sb.append(' ');
-            sb.append("RecordSeparator=<").append(recordSeparator).append('>');
+            sb.append("RecordSeparator=<").append(StringUtils.join(recordSeparators, " or ")).append('>');
         }
         if (getIgnoreEmptyLines()) {
             sb.append(" EmptyLines:ignored");
@@ -2273,20 +2378,21 @@ public final class CSVFormat implements Serializable {
      * @throws IllegalArgumentException Throw when any attribute is invalid or inconsistent with other attributes.
      */
     private void validate() throws IllegalArgumentException {
-        if (containsLineBreak(delimiter)) {
-            throw new IllegalArgumentException("The delimiter cannot be a line break");
-        }
+        for (String delimiter : delimiters) {
+            if (containsLineBreak(delimiter)) {
+                throw new IllegalArgumentException("The delimiter cannot be a line break");
+            }
+            if (quoteCharacter != null && contains(delimiter, quoteCharacter.charValue())) {
+                throw new IllegalArgumentException("The quoteChar character and the delimiter cannot be the same ('" + quoteCharacter + "')");
+            }
 
-        if (quoteCharacter != null && contains(delimiter, quoteCharacter.charValue())) {
-            throw new IllegalArgumentException("The quoteChar character and the delimiter cannot be the same ('" + quoteCharacter + "')");
-        }
+            if (escapeCharacter != null && contains(delimiter, escapeCharacter.charValue())) {
+                throw new IllegalArgumentException("The escape character and the delimiter cannot be the same ('" + escapeCharacter + "')");
+            }
 
-        if (escapeCharacter != null && contains(delimiter, escapeCharacter.charValue())) {
-            throw new IllegalArgumentException("The escape character and the delimiter cannot be the same ('" + escapeCharacter + "')");
-        }
-
-        if (commentMarker != null && contains(delimiter, commentMarker.charValue())) {
-            throw new IllegalArgumentException("The comment start character and the delimiter cannot be the same ('" + commentMarker + "')");
+            if (commentMarker != null && contains(delimiter, commentMarker.charValue())) {
+                throw new IllegalArgumentException("The comment start character and the delimiter cannot be the same ('" + commentMarker + "')");
+            }
         }
 
         if (quoteCharacter != null && quoteCharacter.equals(commentMarker)) {

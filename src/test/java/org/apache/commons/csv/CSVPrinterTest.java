@@ -92,7 +92,7 @@ public class CSVPrinterTest {
 
     private String longText2;
 
-    private final String recordSeparator = CSVFormat.DEFAULT.getRecordSeparator();
+    private final String recordSeparator = CSVFormat.DEFAULT.getRecordSeparator().get(0);
 
     private File createTempFile() throws IOException {
         return createTempPath().toFile();
